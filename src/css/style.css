@@ -1,0 +1,47 @@
+body {
+    background: black;
+    color: #999999;
+    font-family: sans-serif;
+}
+
+.content {
+    max-width: 900px;
+    margin: 0px auto 0px auto;
+}
+
+h1 {
+    text-align: center;
+}
+
+section.game {
+    text-align: center;
+}
+
+section.game button {
+    background: #222222;
+    border: 2px solid #aaaaaa;
+    color: white;
+    padding: 5px;
+}
+
+section.game, section.controls {
+    max-width: 640px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+canvas {
+    background: black;
+    margin: 0px auto 0px auto;
+    display: block;
+}
+
+footer {
+    margin-top: 70px;
+    text-align: center;
+    color: white;
+}
+
+footer a {
+    color: white;
+}
