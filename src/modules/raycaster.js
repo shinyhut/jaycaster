@@ -4,7 +4,7 @@ const QUAD_3_LIMIT = radians(270);
 const QUAD_4_LIMIT = radians(360);
 const FIELD_OF_VIEW = radians(70);
 const CELL_SIZE = 64;
-const MIN_WALL_DISTANCE = 10.0;
+const MIN_WALL_DISTANCE = 15.0;
 const MAX_SPEED = 5.0;
 const ACCEL = 0.2;
 const DECEL = 0.1;
@@ -456,21 +456,16 @@ class Projectile {
     animate(ticks) {
         const dx = Math.sin(this.heading);
         const dy = Math.cos(this.heading);
-        const speed = this._speed * ticks;
+        let speed = this._speed * ticks;
+        if (speed > MIN_WALL_DISTANCE) {
+            speed = MIN_WALL_DISTANCE;
+        }
         const wallCheck = speed > 0 ? MIN_WALL_DISTANCE : speed < 0 ? -MIN_WALL_DISTANCE : 0;
-        const wx = this._world.cell(this.x + wallCheck * dx);
-        const wy = this._world.cell(this.y - wallCheck * dy);
-        const px = this.x + speed * dx;
-        const py = this.y - speed * dy;
-        const pcx = this._world.cell(px);
-        const pcy = this._world.cell(py);
-        if (this._world.walls[wy][wx] !== 0 || this._world.walls[pcy][pcx] !== 0) {
-            this._speed = 0.0;
-            return false;
-        } else {
-            this.x = px;
-            this.y = py;
-            return true;
+        if (this._world.walls[this._world.cell(this.y)][this._world.cell(this.x + dx * wallCheck)] === 0) {
+            this.x += dx * speed;
+        }
+        if (this._world.walls[this._world.cell(this.y - dy * wallCheck)][this._world.cell(this.x)] === 0) {
+            this.y -= dy * speed;
         }
     }
     
@@ -491,45 +486,42 @@ class Player extends Projectile {
     }
     
     animate(ticks) {
+        super.animate(ticks);
+        
         const turnSpeed = this._turnSpeed * ticks;
         const turnAccel = TURN_ACCEL * ticks;
-        const hitWall = !super.animate(ticks);
-
-        this.heading = normaliseAngle(this.heading + turnSpeed);
-
-        if (!hitWall) {
-            const accel = ACCEL * ticks;
-            const decel = DECEL * ticks;
-            
-            if (this.keys.forward) {
+        const accel = ACCEL * ticks;
+        const decel = DECEL * ticks;
+        
+        if (this.keys.forward) {
+            if (this._speed < 0.0) {
+                this._speed = 0.0;
+            }
+            if (this._speed <= MAX_SPEED) {
+                this._speed += accel;
+            }
+        } else if (this.keys.backward) {
+            if (this._speed > 0.0) {
+                this._speed = 0.0;
+            }
+            if (Math.abs(this._speed) <= MAX_SPEED) {
+                this._speed -= accel;
+            }
+        } else {
+            if (this._speed > 0.0) {
+                this._speed -= decel;
                 if (this._speed < 0.0) {
                     this._speed = 0.0;
                 }
-                if (this._speed <= MAX_SPEED) {
-                    this._speed += accel;
-                }
-            } else if (this.keys.backward) {
+            } else if (this._speed < 0.0) {
+                this._speed += decel;
                 if (this._speed > 0.0) {
                     this._speed = 0.0;
                 }
-                if (Math.abs(this._speed) <= MAX_SPEED) {
-                    this._speed -= accel;
-                }
-            } else {
-                if (this._speed > 0.0) {
-                    this._speed -= decel;
-                    if (this._speed < 0.0) {
-                        this._speed = 0.0;
-                    }
-                }
-                else if (this._speed < 0.0) {
-                    this._speed += decel;
-                    if (this._speed > 0.0) {
-                        this._speed = 0.0;
-                    }
-                }
             }
         }
+
+        this.heading = normaliseAngle(this.heading + turnSpeed);
 
         if (this.keys.left) {
             if (Math.abs(this._turnSpeed) < MAX_TURN_SPEED) {
