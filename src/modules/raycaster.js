@@ -457,8 +457,8 @@ class Projectile {
         const dx = Math.sin(this.heading);
         const dy = Math.cos(this.heading);
         let speed = this._speed * ticks;
-        if (speed > MIN_WALL_DISTANCE) {
-            speed = MIN_WALL_DISTANCE;
+        if (Math.abs(speed) > MIN_WALL_DISTANCE) {
+            speed = speed > 0 ? MIN_WALL_DISTANCE : -MIN_WALL_DISTANCE;
         }
         const wallCheck = speed > 0 ? MIN_WALL_DISTANCE : speed < 0 ? -MIN_WALL_DISTANCE : 0;
         if (this._world.walls[this._world.cell(this.y)][this._world.cell(this.x + dx * wallCheck)] === 0) {
