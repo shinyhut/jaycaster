@@ -11,12 +11,16 @@ import Ceiling2 from './img/ceiling2.png';
 import Tree from './img/tree.png';
 import Pentagram from './img/pentagram.png';
 import Pumpkin from './img/pumpkin.png'
+import Fireball from './img/fireball.png'
+import EnemyFireball from './img/enemy_fireball.png'
 
 const canvas = document.querySelector("#raycaster");
 const world = {
     startX: 322,
     startY: 928,
     initialHeading: Math.PI / 2,
+    playerWeaponSprite: 9,
+    playerDmg: 5,
     images: [
         Wall1,
         Wall2,
@@ -26,7 +30,9 @@ const world = {
         Ceiling2,
         Tree,
         Pentagram,
-        Pumpkin
+        Pumpkin,
+        Fireball,
+        EnemyFireball
     ],
     walls: [
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 0, 0, 0, 0, 0, 0, 0],
@@ -179,34 +185,9 @@ const world = {
             y: 800
         },
         {
-            image: 8,
-            x: 1938,
-            y: 1568
-        },
-        {
-            image: 8,
-            x: 1938,
-            y: 1600
-        },
-        {
-            image: 8,
-            x: 1938,
-            y: 1632
-        },
-        {
-            image: 8,
-            x: 1248,
-            y: 160
-        },
-        {
             image: 6,
             x: 1536,
             y: 288
-        },
-        {
-            image: 8,
-            x: 1536,
-            y: 352
         },
         {
             image: 6,
@@ -244,14 +225,66 @@ const world = {
             y: 832
         },
         {
-            image: 8,
-            x: 2208,
-            y: 896
-        },
-        {
             image: 6,
             x: 1440,
             y: 544
+        },
+    ],
+    enemies: [
+        {
+            image: 8,
+            weaponImage: 10,
+            shotsPerSecond: 1,
+            x: 1248,
+            y: 160,
+            hp: 100,
+            dmg: 10
+        },
+        {
+            image: 8,
+            weaponImage: 10,
+            shotsPerSecond: 1,
+            image: 8,
+            x: 1938,
+            y: 1568,
+            hp: 100,
+            dmg: 10
+        },
+        {
+            image: 8,
+            weaponImage: 10,
+            shotsPerSecond: 1,
+            x: 1938,
+            y: 1600,
+            hp: 100,
+            dmg: 10
+        },
+        {
+            image: 8,
+            weaponImage: 10,
+            shotsPerSecond: 1,
+            x: 1938,
+            y: 1632,
+            hp: 100,
+            dmg: 10
+        },
+        {
+            image: 8,
+            weaponImage: 10,
+            shotsPerSecond: 1,
+            x: 1536,
+            y: 352,
+            hp: 100,
+            dmg: 10
+        },
+        {
+            image: 8,
+            weaponImage: 10,
+            shotsPerSecond: 1,
+            x: 2208,
+            y: 896,
+            hp: 100,
+            dmg: 10
         },
     ]
 };

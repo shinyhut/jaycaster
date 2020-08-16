@@ -10,6 +10,9 @@ const ACCEL = 0.2;
 const DECEL = 0.1;
 const MAX_TURN_SPEED = radians(2);
 const TURN_ACCEL = radians(0.2);
+const DAMAGING_PROJECTILE_SPEED = 15.0
+const SHOTS_PER_SECOND = 5;
+const SHOT_DELAY = 1000 / SHOTS_PER_SECOND;
 const GAME_TICKS_PER_SECOND = 60;
 const ANIMATION_DELAY = 1000 / GAME_TICKS_PER_SECOND;
 const CACHE_WARMING_TIME = 5000;
@@ -51,10 +54,14 @@ export class Raycaster {
         }
 
         const world = new World(map.walls, map.floors, map.ceilings);         
-        const player = new Player(map.startX, map.startY, map.initialHeading, world);
+        const player = new Player(map.startX, map.startY, map.initialHeading, map.playerWeaponSprite, map.playerDmg, world);
         const gameState = new GameState(player);
         for (const sprite of map.sprites) {
             gameState.addGameElement(sprite);
+        }
+        for (const e of map.enemies) {
+            const enemy = new Enemy(e.x, e.y, e.image, e.weaponImage, e.hp, e.dmg, e.shotsPerSecond, world);
+            gameState.addGameElement(enemy);
         }
 
         this._display = display;
@@ -249,8 +256,8 @@ export class Raycaster {
             const angle = normaliseAngle(Math.atan2(dx, dy) - this._player.heading);
             if (!(angle >= QUAD_1_LIMIT && angle <= QUAD_3_LIMIT)) {
                 const distance = Math.sqrt(Math.pow((sprite.x - this._player.x), 2) + Math.pow((this._player.y - sprite.y), 2)) * Math.cos(angle);
-                if (distance < furthestWall) {
-                    visibleSprites.push({sprite, angle, distance});
+                if (distance < furthestWall) {                    
+                    visibleSprites.push({sprite, angle, distance});                    
                 }
             }
         }
@@ -267,15 +274,22 @@ export class Raycaster {
             const width = image.width / scale;
             const sx = Math.round(Math.tan(angle) * this._display.distanceToProjectionPlane + (this._display.width / 2) - width / 2);
             const sy = Math.round((this._display.height - height) / 2);
+            let visible = false;
             for (let x = sx; x < sx + width; x++) {
                 if (x < 0 || x > this._display.width - 1) {
                     continue;
                 }
                 if (distance < wallDistances[x]) {
+                    visible = true;
                     let tx = Math.round((x - sx) * scale);
                     if (!this._gameState.warmingCache) {
                         this._display.ctx.drawImage(image, tx, 0, 1, image.height, x, sy, 1, height);
                     }
+                }
+            }
+            if (visible) {
+                if (sprite.setTarget !== undefined) {
+                    sprite.setTarget(this._player);
                 }
             }
         }
@@ -338,10 +352,11 @@ class KeyTracker {
         this.backward = false;
         this.left = false;
         this.right = false;
+        this.ctrl = false;
 
         let keydown = function (event) {
             event.preventDefault();
-            switch (event.key) {
+            switch (event.code) {
                 case "ArrowLeft":
                 case "Left":
                     this.left = true;
@@ -358,12 +373,15 @@ class KeyTracker {
                 case "Down":
                     this.backward = true;
                     break;
+                case "ControlLeft":
+                    this.space = true;
+                    break;
             }
         };
 
         let keyup = function (event) {
             event.preventDefault();
-            switch (event.key) {
+            switch (event.code) {
                 case "ArrowLeft":
                 case "Left":
                     this.left = false;
@@ -380,6 +398,9 @@ class KeyTracker {
                 case "Down":
                     this.backward = false;
                     break;
+                case "ControlLeft":
+                    this.space = false;
+                    break;                    
             }
         };
 
@@ -432,20 +453,33 @@ class GameState {
     }
 
     addGameElement(element) {
+        element._gameState = this;
         this._gameElements.push(element);
+    }
+
+    removeGameElement(element) {
+        const index = this._gameElements.indexOf(element);
+        if (index > -1) {
+            this._gameElements.splice(index, 1);
+        }
     }
 
     get sprites() {
         return this._gameElements.filter(element => element.image);
     }
+
+    get damagables() {
+        return this._gameElements.filter(element => element.takeDamage);
+    }
 }
 
 class Projectile {
-    constructor(x, y, heading, speed, world) {
+    constructor(x, y, heading, speed, slideOnWalls, world) {
         this.x = x;
         this.y = y;
         this.heading = heading;
         this._speed = speed;
+        this._slideOnWalls = slideOnWalls;
         this._world = world;
         this._initialX = x;
         this._initialY = y;
@@ -461,12 +495,27 @@ class Projectile {
             speed = speed > 0 ? MIN_WALL_DISTANCE : -MIN_WALL_DISTANCE;
         }
         const wallCheck = speed > 0 ? MIN_WALL_DISTANCE : speed < 0 ? -MIN_WALL_DISTANCE : 0;
-        if (this._world.walls[this._world.cell(this.y)][this._world.cell(this.x + dx * wallCheck)] === 0) {
-            this.x += dx * speed;
+        let hitWall = false;
+        if (this._slideOnWalls) {
+            if (this._world.walls[this._world.cell(this.y)][this._world.cell(this.x + dx * wallCheck)] === 0) {
+                this.x += dx * speed;
+            } else {
+                hitWall = true;
+            }
+            if (this._world.walls[this._world.cell(this.y - dy * wallCheck)][this._world.cell(this.x)] === 0) {
+                this.y -= dy * speed;
+            } else {
+                hitWall = true;
+            }
+        } else {
+            if (this._world.walls[this._world.cell(this.y + dy * wallCheck)][this._world.cell(this.x + dx * wallCheck)] === 0) {
+                this.x += dx * speed;
+                this.y -= dy * speed;
+            } else {
+                hitWall = true;
+            }
         }
-        if (this._world.walls[this._world.cell(this.y - dy * wallCheck)][this._world.cell(this.x)] === 0) {
-            this.y -= dy * speed;
-        }
+        return !hitWall;
     }
     
     reset() {
@@ -478,10 +527,13 @@ class Projectile {
 }
 
 class Player extends Projectile {
-    constructor(x, y, heading, world) {
-        super(x, y, heading, 0.0, world);
-        this._turnSpeed = 0.0;
+    constructor(x, y, heading, weaponSprite, dmg, world) {
+        super(x, y, heading, 0.0, true, world);
+        this._weaponSprite = weaponSprite;
+        this._turnSpeed = 0.0;        
         this._world = world;
+        this._canShoot = true;
+        this.dmg = dmg;
         this.keys = new KeyTracker();
     }
     
@@ -538,10 +590,115 @@ class Player extends Projectile {
         } else if (this._turnSpeed > 0.0) {
             this._turnSpeed = 0.0;
         }
+
+        if (this.keys.space && this._canShoot) {
+            this._shoot();
+        }
+    }
+
+    _shoot() {
+        const projectile = new DamagingProjectile(this.x, this.y, this.heading, this, this._weaponSprite, this._world);
+        this._gameState.addGameElement(projectile);        
+        this._canShoot = false;
+        setTimeout(() => this._canShoot = true, SHOT_DELAY);
+    }
+
+    takeDamage(dmg) {
+
     }
     
     reset() {
         super.reset();
         this._turnSpeed = 0.0;
+    }
+}
+
+class Enemy extends Projectile {
+    constructor(x, y, image, weaponImage, hp, dmg, shotsPerSecond, world) {
+        super(x, y, 0, 0, true, world);
+        this.hp = hp;        
+        this.image = image;
+        this._dmg = dmg;
+        this._shotDelay = 1000 / shotsPerSecond;
+        this._weaponSprite = weaponImage;
+        this._canShoot = true;
+    }
+
+    takeDamage(dmg) {
+        this.hp -= dmg;
+        if (this.hp <= 0) {
+            this._gameState.removeGameElement(this);
+        }
+    }
+
+    setTarget(gameElement) {
+        this._target = gameElement;
+    }
+
+    animate(ticks) {
+        super.animate(ticks);
+        if (!this._target) {
+            return;
+        }
+        const dx = this._target.x - this.x;
+        const dy = this.y - this._target.y;
+        this.heading = normaliseAngle(Math.atan2(dx, dy));
+        const distance = Math.sqrt(Math.pow((this._target.x - this.x), 2) + Math.pow((this.y - this._target.y), 2));
+        if (Math.abs(distance) > 128) {
+            this._speed = 2;
+        } else {
+            this._speed = 0;
+        }
+
+        const damagables = this._gameState.damagables;
+        for (const rival of damagables) {
+            if (rival == this) {
+                continue;
+            }
+            const dx = rival.x - this.x;
+            const dy = this.y - rival.y;
+            const angle = normaliseAngle(Math.atan2(dx, dy) - this.heading);
+            const distance = Math.sqrt(Math.pow((dx), 2) + Math.pow((dy), 2));
+            if (Math.abs(distance) < 32 && !(angle >= QUAD_1_LIMIT && angle <= QUAD_3_LIMIT)) {
+                this._speed = 0;
+            }
+        }
+        
+        if (this._canShoot) {
+            this._shoot();
+        }
+    }
+
+    _shoot() {
+        const projectile = new DamagingProjectile(this.x, this.y, this.heading, this, this._weaponSprite, this._world);
+        this._gameState.addGameElement(projectile);        
+        this._canShoot = false;
+        setTimeout(() => this._canShoot = true, this._shotDelay);
+    }
+}
+
+class DamagingProjectile extends Projectile {
+    constructor(x, y, heading, shooter, image, world) {
+        super(x, y, heading, shooter._speed + DAMAGING_PROJECTILE_SPEED, false, world);
+        this._shooter = shooter;
+        this._world = world;
+        this.image = image;
+    }
+
+    animate(ticks) {
+        if (!super.animate(ticks)) {
+            this._gameState.removeGameElement(this);
+        }
+        const damagables = this._gameState.damagables;
+        for (const victim of damagables) {
+            if (victim == this._shooter || victim.constructor == this._shooter.constructor) {
+                continue;
+            }
+            const distance = Math.sqrt(Math.pow((victim.x - this.x), 2) + Math.pow((this.y - victim.y), 2));
+            if (Math.abs(distance) < 32) {
+                victim.takeDamage(this._shooter.dmg);
+                this._gameState.removeGameElement(this);
+            }
+        }
     }
 }
